@@ -585,14 +585,21 @@ service cloud.firestore {
         && request.resource.data.comunidadId == incident.comunidadId;
     }
 
-    function canReadPublicAlert(data) {
+    function canReadPublicAlert(alertId, data) {
+      let userCommunity = profile(request.auth.uid).get('comunidadId', null);
+      let incidentPath = /databases/$(database)/documents/incidentes/$(alertId);
       return activeUser()
         && (
-          profile(request.auth.uid).get('comunidadId', null) is string
-          && profile(request.auth.uid).comunidadId.size() > 0
-          && data.get('comunidadId', null) == profile(request.auth.uid).comunidadId
-          || (profile(request.auth.uid).get('comunidadId', null) == null
-            || profile(request.auth.uid).comunidadId == '')
+          userCommunity is string
+          && userCommunity.size() > 0
+          && data.get('comunidadId', null) == userCommunity
+          || userCommunity is string
+          && userCommunity.size() > 0
+          && data.get('comunidadId', null) in [null, '']
+          && exists(incidentPath)
+          && request.auth.uid in get(incidentPath).data.get('reporterUids', [])
+          && get(incidentPath).data.get('comunidadId', null) in [null, '']
+          || (userCommunity == null || userCommunity == '')
           && data.get('visibilidad', '') == 'publica'
         );
     }
@@ -850,6 +857,20 @@ service cloud.firestore {
         && data.precisionMetros > 0
         && data.precisionMetros <= 100000
         && data.updatedAt == request.time;
+    }
+
+    function canReadAssignedPatrol(patrolId) {
+      let unitPath = /databases/$(database)/documents/unidades/$(patrolId);
+      return operator()
+        && profile(request.auth.uid).patrullaId == patrolId
+        && profile(request.auth.uid).comunidadId is string
+        && profile(request.auth.uid).comunidadId.size() > 0
+        && validUnitId(patrolId)
+        && exists(unitPath)
+        && get(unitPath).data.estado == 'ocupada'
+        && get(unitPath).data.asignadaA == request.auth.uid
+        && (profile(request.auth.uid).rol != 'seguridad'
+          || profile(request.auth.uid).estadoSolicitudRol == 'aprobada');
     }
 
     function validPatrolCreate(patrolId) {
@@ -1476,7 +1497,7 @@ service cloud.firestore {
     }
 
     match /alertas_publicas/{alertaId} {
-      allow read: if canReadPublicAlert(resource.data);
+      allow read: if canReadPublicAlert(alertaId, resource.data);
       allow create: if activeUser() && validPublicAlertCreate(alertaId);
       allow update: if validPublicAlertUpdate(alertaId);
       allow delete: if false;
@@ -1507,7 +1528,9 @@ service cloud.firestore {
     }
 
     match /patrullas/{patrullaId} {
-      allow read: if staffForCommunity(resource.data.get('comunidadId', null));
+      allow get: if canReadAssignedPatrol(patrullaId)
+        || staffForCommunity(resource.data.get('comunidadId', null));
+      allow list: if staffForCommunity(resource.data.get('comunidadId', null));
       allow create: if validPatrolCreate(patrullaId);
       allow update: if validPatrolUpdate(patrullaId);
       allow delete: if false;
