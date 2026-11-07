@@ -8,7 +8,7 @@ CoAlerta es una aplicación web progresiva diseñada para mejorar la seguridad v
 
 ## 🚀 Demo en Vivo
 El proyecto se encuentra desplegado y accesible para el público a través de GitHub Pages:
-🔗 **https://spygil312.github.io/CoAlerta/**
+🔗 **https://spygil312.github.io/CoAlerta-v1/**
 
 ---
 
